@@ -19,14 +19,16 @@ model = None
 def split_audio_whisper(audio_path, audio_name, target_dir='processed'):
     global model
     if model is None:
-        model = WhisperModel(model_size, device="cuda", compute_type="float16")
+        local_device = "cuda" if torch.cuda.is_available() else "cpu"
+        local_compute_type = "float16" if local_device == "cuda" else "float32"
+        model = WhisperModel(model_size, device=local_device, compute_type=local_compute_type)
     audio = AudioSegment.from_file(audio_path)
     max_len = len(audio)
 
     target_folder = os.path.join(target_dir, audio_name)
-    
+
     segments, info = model.transcribe(audio_path, beam_size=5, word_timestamps=True)
-    segments = list(segments)    
+    segments = list(segments)
 
     # create directory
     os.makedirs(target_folder, exist_ok=True)
@@ -36,7 +38,7 @@ def split_audio_whisper(audio_path, audio_name, target_dir='processed'):
     # segments
     s_ind = 0
     start_time = None
-    
+
     for k, w in enumerate(segments):
         # process with the time
         if k == 0:
@@ -61,7 +63,7 @@ def split_audio_whisper(audio_path, audio_name, target_dir='processed'):
         # filter out the segment shorter than 1.5s and longer than 20s
         save = audio_seg.duration_seconds > 1.5 and \
                 audio_seg.duration_seconds < 20. and \
-                len(text) >= 2 and len(text) < 200 
+                len(text) >= 2 and len(text) < 200
 
         if save:
             output_file = os.path.join(wavs_folder, fname)
@@ -92,7 +94,7 @@ def split_audio_vad(audio_path, audio_name, target_dir, split_seconds=10.0):
 
     for start_time, end_time in segments:
         audio_active += audio[int( start_time * 1000) : int(end_time * 1000)]
-    
+
     audio_dur = audio_active.duration_seconds
     print(f'after vad: dur = {audio_dur}')
     target_folder = os.path.join(target_dir, audio_name)
@@ -139,15 +141,15 @@ def get_se(audio_path, vc_model, target_dir='processed', vad=True):
     #     return se, audio_name
     # if os.path.isdir(audio_path):
     #     wavs_folder = audio_path
-    
+
     if vad:
         wavs_folder = split_audio_vad(audio_path, target_dir=target_dir, audio_name=audio_name)
     else:
         wavs_folder = split_audio_whisper(audio_path, target_dir=target_dir, audio_name=audio_name)
-    
+
     audio_segs = glob(f'{wavs_folder}/*.wav')
     if len(audio_segs) == 0:
         raise NotImplementedError('No audio segments found!')
-    
+
     return vc_model.extract_se(audio_segs, se_save_path=se_path), audio_name
 
