@@ -12,8 +12,8 @@ from openvoice.models import SynthesizerTrn
 
 
 class OpenVoiceBaseClass(object):
-    def __init__(self, 
-                config_path, 
+    def __init__(self,
+                config_path,
                 device='cuda:0'):
         if 'cuda' in device:
             assert torch.cuda.is_available()
@@ -102,7 +102,7 @@ class ToneColorConverter(OpenVoiceBaseClass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if kwargs.get('enable_watermark', True):
+        if kwargs.get('enable_watermark', False):
             import wavmark
             self.watermark_model = wavmark.load_model().to(self.device)
         else:
@@ -114,11 +114,11 @@ class ToneColorConverter(OpenVoiceBaseClass):
     def extract_se(self, ref_wav_list, se_save_path=None):
         if isinstance(ref_wav_list, str):
             ref_wav_list = [ref_wav_list]
-        
+
         device = self.device
         hps = self.hps
         gs = []
-        
+
         for fname in ref_wav_list:
             audio_ref, sr = librosa.load(fname, sr=hps.data.sampling_rate)
             y = torch.FloatTensor(audio_ref)
@@ -143,7 +143,7 @@ class ToneColorConverter(OpenVoiceBaseClass):
         # load audio
         audio, sample_rate = librosa.load(audio_src_path, sr=hps.data.sampling_rate)
         audio = torch.tensor(audio).float()
-        
+
         with torch.no_grad():
             y = torch.FloatTensor(audio).to(self.device)
             y = y.unsqueeze(0)
@@ -158,7 +158,7 @@ class ToneColorConverter(OpenVoiceBaseClass):
                 return audio
             else:
                 soundfile.write(output_path, audio, hps.data.sampling_rate)
-    
+
     def add_watermark(self, audio, message):
         if self.watermark_model is None:
             return audio
@@ -174,7 +174,7 @@ class ToneColorConverter(OpenVoiceBaseClass):
                 print('Audio too short, fail to add watermark')
                 break
             message_npy = bits[n * 32: (n + 1) * 32]
-            
+
             with torch.no_grad():
                 signal = torch.FloatTensor(trunck).to(device)[None]
                 message_tensor = torch.FloatTensor(message_npy).to(device)[None]
@@ -199,4 +199,4 @@ class ToneColorConverter(OpenVoiceBaseClass):
         bits = np.stack(bits).reshape(-1, 8)
         message = utils.bits_to_string(bits)
         return message
-    
+
